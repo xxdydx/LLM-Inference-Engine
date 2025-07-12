@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package inference;
+
+// Inference service definition
+service InferenceService {
+  // Predict endpoint for text generation
+  rpc Predict(PredictRequest) returns (PredictResponse);
+  
+  // Health check endpoint
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Request message for prediction
+message PredictRequest {
+  repeated int32 input_ids = 1;
+  int32 max_tokens = 2;
+}
+
+// Response message for prediction
+message PredictResponse {
+  repeated int32 output_ids = 1;
+  repeated float logits = 2;
+}
+
+// Health check request
+message HealthRequest {
+  // Empty message for health check
+}
+
+// Health check response
+message HealthResponse {
+  bool ok = 1;
+  string message = 2;
+} 
