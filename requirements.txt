@@ -1,5 +1,5 @@
 # Core dependencies
-onnxruntime>=1.15.0
+onnxruntime>=1.14.0
 numpy>=1.21.0
 
 # gRPC dependencies

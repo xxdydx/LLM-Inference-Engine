@@ -6,7 +6,7 @@ Handles model loading and inference using ONNX Runtime.
 
 import onnxruntime as ort
 import numpy as np
-from typing import List
+from typing import List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,22 +29,43 @@ class ONNXInfer:
             logger.error(f"Failed to load ONNX model from {model_path}: {e}")
             raise
 
-    def run(self, input_ids: List[int], seq_len: int) -> List[float]:
-        """Run inference on input token IDs and return logits"""
+    def run(self, input_tensor: np.ndarray) -> np.ndarray:
+        """Run inference on a batch of input token IDs and return logits"""
         try:
-            # Prepare input tensor
-            input_tensor = np.array(input_ids, dtype=np.int64).reshape(1, seq_len)
-
-            # Run inference
+            # input_tensor shape: (batch_size, seq_len)
             outputs = self.session.run(
                 output_names=["logits"], input_feed={"input_ids": input_tensor}
             )
+            logger.debug(f"Batch Inference completed: {input_tensor.shape[0]} requests")
 
-            # Extract logits
-            logits = outputs[0].flatten().tolist()
-            logger.debug(f"Inference completed: {len(logits)} logits")
-            return logits
+            return outputs[0]
 
         except Exception as e:
             logger.error(f"Inference failed: {e}")
             raise
+
+    def generate_tokens(
+        self, input_ids: List[int], max_length: int, eos_token_id: Optional[int] = None
+    ) -> List[int]:
+        """
+        Greedy decode from the ONNX model
+
+        Args:
+            input_ids: List of token IDs to seed decoding (e.g. [BOS]).
+            max_length: Maximum total length (including prompt).
+            eos_token_id: If provided, stop when this token is generated.
+
+        Returns:
+            Full list of token IDs (prompt + generated).
+        """
+
+        output_ids = input_ids.copy()
+        for _ in range(len(input_ids), max_length):
+            input_tensor = np.array([output_ids], dtype=np.int64)
+            logits = self.run(input_tensor)
+            last_logits = logits[0, -1, :]
+            next_token = int(np.argmax(last_logits))
+            output_ids.append(next_token)
+            if eos_token_id is not None and next_token == eos_token_id:
+                break
+        return output_ids

@@ -33,3 +33,19 @@ message HealthResponse {
   bool ok = 1;
   string message = 2;
 } 
+
+// Metrics request
+message MetricsRequest {
+  // Empty message for metrics request
+}
+
+// Metrics response
+message MetricsResponse {
+  int32 total_requests = 1;
+  int32 total_batches = 2;
+  float avg_batch_size = 3;
+  int32 batch_timeout_ms = 4;
+  int32 max_batch_size = 5;
+  float requests_per_second = 6;
+  float avg_batch_time_ms = 7;
+}

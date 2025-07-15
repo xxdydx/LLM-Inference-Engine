@@ -74,7 +74,9 @@ def main():
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Shutting down server...")
+            service.batcher.shutdown()
             server.stop(0)
+            logger.info("Server shutdown complete")
 
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
