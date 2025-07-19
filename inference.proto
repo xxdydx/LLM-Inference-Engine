@@ -51,4 +51,8 @@ message MetricsResponse {
   int32 max_batch_size = 5;
   float requests_per_second = 6;
   float avg_batch_time_ms = 7;
+  string quantization_type = 8;
+  float avg_inference_time_ms = 9;
+  float throughput_req_per_sec = 10;
+  int32 total_inferences = 11;
 }

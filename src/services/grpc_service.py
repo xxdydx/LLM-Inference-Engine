@@ -99,6 +99,10 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
                 avg_batch_time_ms=metrics["avg_batch_time_ms"],
                 max_batch_size=metrics["max_batch_size"],
                 requests_per_second=requests_per_second,
+                quantization_type=metrics.get("quantization_type", "unknown"),
+                avg_inference_time_ms=metrics.get("avg_inference_time_ms", 0.0),
+                throughput_req_per_sec=metrics.get("throughput_req_per_sec", 0.0),
+                total_inferences=metrics.get("total_inferences", 0),
             )
             return response
         except Exception as e:

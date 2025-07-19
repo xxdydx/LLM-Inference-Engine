@@ -45,10 +45,17 @@ class Batcher:
             cls._instance = super(Batcher, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, quantization_type=None):
         if not hasattr(self, "initialized"):
             try:
-                self.engine = ONNXInfer("models/gpt2.onnx")
+                # Import quantization type
+                from core.onnx_infer import QuantizationType
+
+                # Use dynamic quantization by default if not specified
+                if quantization_type is None:
+                    quantization_type = QuantizationType.DYNAMIC
+
+                self.engine = ONNXInfer("models/gpt2.onnx", quantization_type)
                 self.request_queue = queue.Queue()
                 self.batch_timeout_ms = 100
                 self.max_batch_size = 10
@@ -186,10 +193,13 @@ class Batcher:
         logger.info("DynamicBatcher shutdown complete")
 
     def get_metrics(self) -> Dict[str, Any]:
-        """Get current batching metrics"""
+        """Get current batching metrics including quantization performance"""
         avg_batch_time = (
             sum(self.batch_times) / len(self.batch_times) if self.batch_times else 0.0
         )
+
+        # Get quantization metrics from engine
+        quantization_metrics = self.engine.get_performance_metrics()
 
         return {
             "total_requests": self.total_requests,
@@ -198,4 +208,14 @@ class Batcher:
             "batch_timeout_ms": self.batch_timeout_ms,
             "max_batch_size": self.max_batch_size,
             "avg_batch_time_ms": avg_batch_time * 1000,
+            "quantization_type": quantization_metrics.get(
+                "quantization_type", "unknown"
+            ),
+            "avg_inference_time_ms": quantization_metrics.get(
+                "avg_inference_time_ms", 0.0
+            ),
+            "throughput_req_per_sec": quantization_metrics.get(
+                "throughput_req_per_sec", 0.0
+            ),
+            "total_inferences": quantization_metrics.get("total_inferences", 0),
         }
