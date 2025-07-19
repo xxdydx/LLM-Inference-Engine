@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from concurrent.futures import Future
 import logging
 import numpy as np
-from .onnx_infer import ONNXInfer
+from core.onnx_infer import ONNXInfer
 
 logger = logging.getLogger(__name__)
 
@@ -127,26 +127,29 @@ class Batcher:
         logger.info(f"Batch worker thread exiting")
 
     def _process_batch(self, batch_requests: List[BatchedRequest]):
-        """Process a batch of requests together using greedy decoding"""
+        """Process a batch of requests together using true batched inference"""
 
         try:
             batch_start = time.time()
 
-            # Process each request individually since greedy decoding is sequential
-            for req in batch_requests:
+            # Extract input data for batched processing
+            input_ids_list = [req.input_ids for req in batch_requests]
+            max_lengths = [req.max_tokens for req in batch_requests]
+
+            # Process all requests together using batched inference
+            batch_results = self.engine.generate_tokens(input_ids_list, max_lengths)
+
+            # Set results for each request
+            for i, (req, (generated_ids, last_logits)) in enumerate(
+                zip(batch_requests, batch_results)
+            ):
                 try:
-                    generated_ids, last_logits = self.engine.generate_tokens(
-                        req.input_ids, req.max_tokens
-                    )
                     result = InferenceResult(
                         output_ids=generated_ids, logits=last_logits
                     )
                     req.future.set_result(result)
-
                 except Exception as e:
-                    logger.error(
-                        f"Failed to process request for future {req.future}: {e}"
-                    )
+                    logger.error(f"Failed to set result for request {i}: {e}")
                     req.future.set_exception(e)
 
             # Update metrics
@@ -162,7 +165,7 @@ class Batcher:
                 self.batch_times.pop(0)
 
             logger.info(
-                f"Processed batch of {len(batch_requests)} requests in {batch_time:.3f}s"
+                f"Processed batch of {len(batch_requests)} requests in {batch_time:.3f}s using true batching"
             )
 
         except Exception as e:

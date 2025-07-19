@@ -198,11 +198,15 @@ class TestBatcher:
         assert request.future == future
 
     @mock.patch("core.batcher.ONNXInfer")
-    def test_process_batch_calls_generate_tokens_and_sets_result(self, mock_onnx_infer):
+    def test_process_batch_calls_generate_tokens_batched_and_sets_result(
+        self, mock_onnx_infer
+    ):
         # Setup mock for the ONNXInfer instance
         mock_engine = mock.MagicMock()
-        # Configure the mock generate_tokens to return a specific result
-        mock_engine.generate_tokens.return_value = ([1, 2, 3, 4], [0.1, 0.9, 0.0, 0.0])
+        mock_engine.generate_tokens.return_value = [
+            ([1, 2, 3, 4], [0.1, 0.9, 0.0, 0.0]),  # First request result
+            ([5, 6, 7, 8], [0.2, 0.8, 0.0, 0.0]),  # Second request result
+        ]
         mock_onnx_infer.return_value = mock_engine
 
         # Re-initialize the batcher to use the mock
@@ -224,10 +228,14 @@ class TestBatcher:
             # Call the method under test
             batcher._process_batch(batch_requests)
 
-            # Assert that generate_tokens was called for each request
-            assert mock_engine.generate_tokens.call_count == len(batch_requests)
-            mock_engine.generate_tokens.assert_any_call([1, 2], 4)
-            mock_engine.generate_tokens.assert_any_call([3], 4)
+            # Assert that generate_tokens was called once with all requests
+            assert mock_engine.generate_tokens.call_count == 1
+            call_args = mock_engine.generate_tokens.call_args
+            input_ids_list = call_args[0][0]
+            max_lengths = call_args[0][1]
+
+            assert input_ids_list == [[1, 2], [3]]
+            assert max_lengths == [4, 4]
 
             # Check the results set on the futures
             result1 = future1.result()
@@ -236,8 +244,8 @@ class TestBatcher:
             assert result1.logits == [0.1, 0.9, 0.0, 0.0]
 
             result2 = future2.result()
-            assert result2.output_ids == [1, 2, 3, 4]
-            assert result2.logits == [0.1, 0.9, 0.0, 0.0]
+            assert result2.output_ids == [5, 6, 7, 8]
+            assert result2.logits == [0.2, 0.8, 0.0, 0.0]
 
             # Shutdown the batcher to stop the thread
             batcher.shutdown()

@@ -11,7 +11,6 @@ import os
 from pathlib import Path
 import grpc
 from concurrent import futures
-from services.grpc_service import InferenceService
 import inference_pb2_grpc
 
 # Add src to Python path

@@ -45,6 +45,11 @@ class InferenceServiceStub(object):
                 request_serializer=inference__pb2.HealthRequest.SerializeToString,
                 response_deserializer=inference__pb2.HealthResponse.FromString,
                 _registered_method=True)
+        self.GetMetrics = channel.unary_unary(
+                '/inference.InferenceService/GetMetrics',
+                request_serializer=inference__pb2.MetricsRequest.SerializeToString,
+                response_deserializer=inference__pb2.MetricsResponse.FromString,
+                _registered_method=True)
 
 
 class InferenceServiceServicer(object):
@@ -65,6 +70,13 @@ class InferenceServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetMetrics(self, request, context):
+        """Get metrics endpoint
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_InferenceServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -77,6 +89,11 @@ def add_InferenceServiceServicer_to_server(servicer, server):
                     servicer.Health,
                     request_deserializer=inference__pb2.HealthRequest.FromString,
                     response_serializer=inference__pb2.HealthResponse.SerializeToString,
+            ),
+            'GetMetrics': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMetrics,
+                    request_deserializer=inference__pb2.MetricsRequest.FromString,
+                    response_serializer=inference__pb2.MetricsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -134,6 +151,33 @@ class InferenceService(object):
             '/inference.InferenceService/Health',
             inference__pb2.HealthRequest.SerializeToString,
             inference__pb2.HealthResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetMetrics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/inference.InferenceService/GetMetrics',
+            inference__pb2.MetricsRequest.SerializeToString,
+            inference__pb2.MetricsResponse.FromString,
             options,
             channel_credentials,
             insecure,

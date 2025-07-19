@@ -7,8 +7,8 @@ Handles gRPC service implementation for inference requests.
 import grpc
 import logging
 from typing import Dict, Any
-from ..core.batcher import Batcher
-from ..utils.health import Health
+from core.batcher import Batcher
+from utils.health import Health
 import inference_pb2
 import inference_pb2_grpc
 import time
@@ -23,6 +23,7 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
         logger.info("InferenceService starting up")
         try:
             self.batcher = Batcher.instance()
+            self.start_time = time.time()  # Track service start time for metrics
             logger.info("InferenceService initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize InferenceService: {e}")

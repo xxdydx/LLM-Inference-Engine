@@ -9,6 +9,9 @@ service InferenceService {
   
   // Health check endpoint
   rpc Health(HealthRequest) returns (HealthResponse);
+  
+  // Get metrics endpoint
+  rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
 }
 
 // Request message for prediction
