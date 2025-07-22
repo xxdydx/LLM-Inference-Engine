@@ -218,4 +218,6 @@ class Batcher:
                 "throughput_req_per_sec", 0.0
             ),
             "total_inferences": quantization_metrics.get("total_inferences", 0),
+            "kv_cache_enabled": quantization_metrics.get("kv_cache_enabled", False),
+            "kv_cache_size": quantization_metrics.get("kv_cache_size", 0),
         }

@@ -103,6 +103,8 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
                 avg_inference_time_ms=metrics.get("avg_inference_time_ms", 0.0),
                 throughput_req_per_sec=metrics.get("throughput_req_per_sec", 0.0),
                 total_inferences=metrics.get("total_inferences", 0),
+                kv_cache_enabled=metrics.get("kv_cache_enabled", False),
+                kv_cache_size=metrics.get("kv_cache_size", 0),
             )
             return response
         except Exception as e:

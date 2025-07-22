@@ -55,4 +55,6 @@ message MetricsResponse {
   float avg_inference_time_ms = 9;
   float throughput_req_per_sec = 10;
   int32 total_inferences = 11;
+  bool kv_cache_enabled = 12;
+  int32 kv_cache_size = 13;
 }
