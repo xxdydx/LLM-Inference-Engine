@@ -43,7 +43,10 @@ class ModelLoader:
 
         logger.debug("ONNX session options configured for optimal performance")
 
-    def _load_model_with_fallback(self, model_path: str, quantization_type: QuantizationType) -> ort.InferenceSession:
+
+    def load_model(
+        self, model_path: str, quantization_type: QuantizationType
+    ) -> ort.InferenceSession:
         """Load model with fallback handling"""
         try:
             if quantization_type == QuantizationType.STATIC:
@@ -66,12 +69,6 @@ class ModelLoader:
             return ort.InferenceSession(
                 model_path, self.session_opts, providers=["CPUExecutionProvider"]
             )
-
-    def load_model(
-        self, model_path: str, quantization_type: QuantizationType
-    ) -> ort.InferenceSession:
-        """Load model based on quantization type"""
-        return self._load_model_with_fallback(model_path, quantization_type)
 
 
 class ModelAnalyzer:

@@ -83,10 +83,6 @@ class Batcher:
                 logger.error(f"Failed to initialize batcher: {e}")
                 raise
 
-    @classmethod
-    def instance(cls):
-        """Get singleton instance"""
-        return cls()
 
     def submit_request(self, input_ids: List[int], max_tokens: int) -> Future:
         """Submit a request for batching and return a Future"""
@@ -144,7 +140,7 @@ class Batcher:
             max_lengths = [req.max_tokens for req in batch_requests]
 
             # Process all requests together using batched inference
-            batch_results = self.engine.generate_tokens(input_ids_list, max_lengths)
+            batch_results = self.engine.token_generator.generate_tokens(input_ids_list, max_lengths)
 
             # Set results for each request
             for i, (req, (generated_ids, last_logits)) in enumerate(

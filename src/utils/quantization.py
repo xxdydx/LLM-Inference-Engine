@@ -88,14 +88,14 @@ def compare_quantization_performance(
     fp32_times = []
     for _ in range(num_runs):
         start_time = time.time()
-        fp32_infer.generate_tokens(test_inputs, [50] * len(test_inputs))
+        fp32_infer.token_generator.generate_tokens(test_inputs, [50] * len(test_inputs))
         fp32_times.append(time.time() - start_time)
     
     # Benchmark quantized
     quantized_times = []
     for _ in range(num_runs):
         start_time = time.time()
-        quantized_infer.generate_tokens(test_inputs, [50] * len(test_inputs))
+        quantized_infer.token_generator.generate_tokens(test_inputs, [50] * len(test_inputs))
         quantized_times.append(time.time() - start_time)
     
     # Calculate metrics

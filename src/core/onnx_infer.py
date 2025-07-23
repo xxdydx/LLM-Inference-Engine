@@ -8,7 +8,6 @@ from typing import List, Tuple, Dict, Any
 from .kv_cache import KVCache
 from .quantization import QuantizationType, ModelLoader, ModelAnalyzer
 from .token_generator import TokenGenerator
-from .benchmarks import QuantizationBenchmark, KVCacheBenchmark
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +51,6 @@ class ONNXInfer:
             # Initialize token generator
             self.token_generator = TokenGenerator(self)
 
-            # Initialize benchmarking tools (lazy loading)
-            self._quantization_benchmark = None
-            self._kv_cache_benchmark = None
 
             logger.info(f"ONNX model loaded successfully from {model_path}")
             logger.info(f"Quantization type: {quantization_type.value}")
@@ -69,31 +65,7 @@ class ONNXInfer:
         """Check if model supports KV caching"""
         return self.model_analysis["supports_kv_cache"]
 
-    def generate_tokens(
-        self,
-        input_ids_list: List[List[int]],
-        max_lengths: List[int],
-        eos_token_id: int = None,
-    ) -> List[Tuple[List[int], List[float]]]:
-        """
-        Generate tokens using the token generator
 
-        Args:
-            input_ids_list: List of input token ID sequences
-            max_lengths: List of maximum lengths for each sequence
-            eos_token_id: If provided, stop when this token is generated
-
-        Returns:
-            List of tuples (output_ids, last_logits) for each request
-        """
-        return self.token_generator.generate_tokens(
-            input_ids_list, max_lengths, eos_token_id
-        )
-
-    def clear_cache(self):
-        """Clear the KV cache"""
-        self.kv_cache.clear()
-        logger.info("KV cache cleared")
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """Get comprehensive performance metrics"""
@@ -114,24 +86,6 @@ class ONNXInfer:
 
         return metrics
 
-    # Benchmark methods (lazy loading)
-    def benchmark_quantization(
-        self, test_inputs: List[List[int]], num_runs: int = 10
-    ) -> Dict[str, Any]:
-        """Benchmark quantization performance"""
-        if self._quantization_benchmark is None:
-            self._quantization_benchmark = QuantizationBenchmark(self)
-        return self._quantization_benchmark.benchmark_quantization(
-            test_inputs, num_runs
-        )
-
-    def benchmark_kv_cache(
-        self, test_inputs: List[List[int]], num_runs: int = 10
-    ) -> Dict[str, Any]:
-        """Benchmark KV cache performance"""
-        if self._kv_cache_benchmark is None:
-            self._kv_cache_benchmark = KVCacheBenchmark(self)
-        return self._kv_cache_benchmark.benchmark_kv_cache(test_inputs, num_runs)
 
     def __str__(self) -> str:
         """String representation of the inference engine"""
@@ -142,6 +96,3 @@ class ONNXInfer:
             f"supports_kv_cache={self.supports_kv_cache})"
         )
 
-    def __repr__(self) -> str:
-        """Detailed representation of the inference engine"""
-        return self.__str__()

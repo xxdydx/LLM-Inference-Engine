@@ -22,7 +22,7 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
     def __init__(self):
         logger.info("InferenceService starting up")
         try:
-            self.batcher = Batcher.instance()
+            self.batcher = Batcher()
             self.start_time = time.time()  # Track service start time for metrics
             logger.info("InferenceService initialized successfully")
         except Exception as e:
