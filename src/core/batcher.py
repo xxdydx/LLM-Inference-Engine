@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from concurrent.futures import Future
 import logging
 import numpy as np
-from core.onnx_infer import ONNXInfer
+from .onnx_infer import ONNXInfer
 
 logger = logging.getLogger(__name__)
 
