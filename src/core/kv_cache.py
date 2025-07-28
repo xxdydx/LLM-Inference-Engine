@@ -70,25 +70,19 @@ class KVCache:
     ) -> Optional[Dict]:
         """Save tensor dict to memory-mapped file"""
         try:
-            # Create unique filename
             filename = f"cache_{hash(cache_key) % 1000000}.bin"
             filepath = os.path.join(self.temp_dir, filename)
 
-            # Serialize tensor dict to bytes
             serialized_data = pickle.dumps(tensor_dict)
 
-            # Create memory-mapped file
             with open(filepath, "wb") as f:
                 f.write(serialized_data)
 
-            # Open as memory-mapped file
             f = open(filepath, "r+b")
             mm = mmap.mmap(f.fileno(), 0)
 
-            # Store references
             self.mmap_files[cache_key] = (f, mm, filepath)
 
-            # Update mmap cache entry
             self.mmap_cache[cache_key] = {
                 "is_mmapped": True,
                 "filepath": filepath,

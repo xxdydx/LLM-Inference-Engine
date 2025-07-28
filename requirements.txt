@@ -17,3 +17,7 @@ mypy>=1.0.0
 # Logging and utilities
 colorlog>=6.7.0
 psutil>=5.8.0  # For system info in benchmarks 
+
+# MLX dependencies
+mlx>=0.26.0
+mlx-lm>=0.20.0  # For LLM models like GPT-2

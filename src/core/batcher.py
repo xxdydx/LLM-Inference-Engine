@@ -32,6 +32,11 @@ class BatchedRequest:
     max_tokens: int
     future: Future
     timestamp: float
+    
+    # Beam search parameters
+    beam_size: int = 1
+    length_penalty: float = 1.0
+    eos_token_id: Optional[int] = None
 
 
 class Batcher:
@@ -84,7 +89,14 @@ class Batcher:
                 raise
 
 
-    def submit_request(self, input_ids: List[int], max_tokens: int) -> Future:
+    def submit_request(
+        self, 
+        input_ids: List[int], 
+        max_tokens: int,
+        beam_size: int = 1,
+        length_penalty: float = 1.0,
+        eos_token_id: Optional[int] = None
+    ) -> Future:
         """Submit a request for batching and return a Future"""
         # Create a Future for the result
         future = Future()
@@ -95,6 +107,9 @@ class Batcher:
             max_tokens=max_tokens,
             future=future,
             timestamp=time.time(),
+            beam_size=beam_size,
+            length_penalty=length_penalty,
+            eos_token_id=eos_token_id,
         )
 
         # Add to queue
@@ -138,9 +153,22 @@ class Batcher:
             # Extract input data for batched processing
             input_ids_list = [req.input_ids for req in batch_requests]
             max_lengths = [req.max_tokens for req in batch_requests]
+            
+            # Extract beam search parameters (use first request's parameters for the whole batch)
+            # TODO: Handle mixed beam search parameters in batches
+            first_req = batch_requests[0]
+            beam_size = first_req.beam_size
+            length_penalty = first_req.length_penalty
+            eos_token_id = first_req.eos_token_id
 
             # Process all requests together using batched inference
-            batch_results = self.engine.token_generator.generate_tokens(input_ids_list, max_lengths)
+            batch_results = self.engine.token_generator.generate_tokens(
+                input_ids_list=input_ids_list,
+                max_lengths=max_lengths,
+                beam_size=beam_size,
+                length_penalty=length_penalty,
+                eos_token_id=eos_token_id
+            )
 
             # Set results for each request
             for i, (req, (generated_ids, last_logits)) in enumerate(

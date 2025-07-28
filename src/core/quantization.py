@@ -69,7 +69,7 @@ class ModelLoader:
                 session = self._load_session(quantized_path)
                 logger.info(f"Loaded dynamically quantized model from {quantized_path}")
                 return session
-                
+
             elif quantization_type == QuantizationType.STATIC:
                 # Try static quantization
                 try:
@@ -81,23 +81,70 @@ class ModelLoader:
                     logger.warning(f"Static quantization failed: {e}, falling back to dynamic")
                     quantized_path = self.quantizer.quantise_dynamic(model_path)
                     return self._load_session(quantized_path)
-            
+
             else:  # QuantizationType.NONE
                 # Load original FP32 model
                 session = self._load_session(model_path)
                 logger.info(f"Loaded FP32 model from {model_path}")
                 return session
-                
+
         except Exception as e:
             logger.error(f"All quantization attempts failed: {e}, loading FP32 as fallback")
             return self._load_session(model_path)
 
     def _load_session(self, model_path: str) -> ort.InferenceSession:
         """Load ONNX session with configured options"""
-        return ort.InferenceSession(
-            model_path, self.session_opts, providers=["CPUExecutionProvider"]
-        )
-    
+        providers = [
+            (
+                "CoreMLExecutionProvider",
+                {
+                    "MLComputeUnits": "ALL",  # GPU + Neural Engine + CPU
+                    "MLProgram": True,
+                    "RequireStaticInputShapes": False,
+                    "EnableOnSubgraphs": False,
+                },
+            )
+        ]
+        try:
+            session = ort.InferenceSession(
+                model_path, providers=providers, sess_options=self.session_opts
+            )
+            actual_providers = session.get_providers()
+            logger.info(f"Loaded model with providers: {actual_providers}")
+
+            if "CoreMLExecutionProvider" in actual_providers:
+                logger.info("Apple Silicon GPU enabled")
+
+            return session
+        except Exception as e:
+            logger.error(f"CoreML failed: {e}, using CPUExecutionProvider")
+            session = ort.InferenceSession(
+                model_path,
+                providers=["CPUExecutionProvider"],
+                sess_options=self.session_opts,
+            )
+            return session
+
+    def get_gpu_info(self) -> Dict[str, Any]:
+        """Get Apple Silicon GPU information"""
+        try:
+            import psutil
+
+            return {
+                "gpu_available": "CoreMLExecutionProvider"
+                in self.session.get_providers(),
+                "metal_support": True,
+                "memory_pressure": psutil.virtual_memory().percent,
+                "gpu_memory_usage": psutil.virtual_memory().used,
+                "gpu_memory_total": psutil.virtual_memory().total,
+                "gpu_memory_free": psutil.virtual_memory().free,
+                "gpu_memory_used": psutil.virtual_memory().used,
+                "gpu_memory_total": psutil.virtual_memory().total,
+                "gpu_memory_free": psutil.virtual_memory().free,
+            }
+        except ImportError:
+            return {"error": "psutil not available, cannot get GPU information"}
+
     def benchmark_quantization(self, model_path: str, test_inputs: List = None) -> Dict[str, Any]:
         """
         Benchmark FP32 vs quantized model performance
@@ -113,23 +160,23 @@ class ModelLoader:
             "model_path": model_path,
             "quantization_available": QUANTIZATION_AVAILABLE
         }
-        
+
         if not QUANTIZATION_AVAILABLE:
             results["error"] = "Quantization not available - install onnx package"
             return results
-        
+
         try:
             # Get file size metrics
             quantized_path = self.quantizer.quantise_dynamic(model_path)
             size_metrics = self.quantizer.get_quantisation_metrics(model_path, quantized_path)
             results.update(size_metrics)
-            
+
             # TODO: Add inference speed benchmarking if test_inputs provided
             if test_inputs:
                 results["inference_benchmark"] = "Not yet implemented"
-            
+
             return results
-            
+
         except Exception as e:
             results["error"] = str(e)
             return results

@@ -33,6 +33,11 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
         try:
             input_ids = list(request.input_ids)
             max_tokens = request.max_tokens
+            
+            # Extract beam search parameters with defaults
+            beam_size = request.beam_size if request.beam_size > 0 else 1
+            length_penalty = request.length_penalty if request.length_penalty > 0 else 1.0
+            eos_token_id = request.eos_token_id if request.eos_token_id > 0 else None
 
             # Validate input
             if not input_ids:
@@ -46,11 +51,23 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("max_tokens must be non-negative")
                 return inference_pb2.PredictResponse()
+                
+            if beam_size < 1:
+                logger.warning(f"invalid beam_size: {beam_size}")
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("beam_size must be positive")
+                return inference_pb2.PredictResponse()
 
-            logger.info(f"Predict: input_len={len(input_ids)}, max_tokens={max_tokens}")
+            logger.info(f"Predict: input_len={len(input_ids)}, max_tokens={max_tokens}, beam_size={beam_size}, length_penalty={length_penalty}")
 
             # Submit request to batcher
-            future = self.batcher.submit_request(input_ids, max_tokens)
+            future = self.batcher.submit_request(
+                input_ids=input_ids,
+                max_tokens=max_tokens,
+                beam_size=beam_size,
+                length_penalty=length_penalty,
+                eos_token_id=eos_token_id
+            )
 
             # Wait for result
             try:

@@ -18,6 +18,11 @@ service InferenceService {
 message PredictRequest {
   repeated int32 input_ids = 1;
   int32 max_tokens = 2;
+  
+  // Beam search parameters
+  int32 beam_size = 3;          // Number of beams (1 = greedy, >1 = beam search)
+  float length_penalty = 4;     // Length penalty for beam search
+  int32 eos_token_id = 5;       // EOS token ID to stop generation
 }
 
 // Response message for prediction
