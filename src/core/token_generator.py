@@ -20,7 +20,7 @@ class TokenGenerator:
     def __init__(self, inference_engine):
         """
         Initialize token generator
-        
+
         Args:
             inference_engine: The ONNX inference engine instance
         """
@@ -40,13 +40,13 @@ class TokenGenerator:
     ) -> np.ndarray:
         """
         Run inference with KV caching support
-        
+
         Args:
             input_tensor: Input tensor of shape (batch_size, seq_len)
             sequence_id: ID of the sequence for KV caching
             position: Current position in the sequence for KV caching
             use_cache: Whether to use KV caching
-        
+
         Returns:
             Logits tensor
         """
@@ -69,7 +69,9 @@ class TokenGenerator:
 
                 if cached_present_kv is not None:
                     # Add past_key_values to input feed
-                    for input_name in self.engine.model_analysis["past_key_values_inputs"]:
+                    for input_name in self.engine.model_analysis[
+                        "past_key_values_inputs"
+                    ]:
                         if input_name in cached_present_kv:
                             input_feed[input_name] = cached_present_kv[input_name]
                     logger.debug(
@@ -78,11 +80,19 @@ class TokenGenerator:
 
             # Determine output names
             output_names = ["logits"]
-            if use_cache and self.engine.cache_enabled and self.engine.model_analysis["supports_kv_cache"]:
-                output_names.extend(self.engine.model_analysis["present_key_values_outputs"])
+            if (
+                use_cache
+                and self.engine.cache_enabled
+                and self.engine.model_analysis["supports_kv_cache"]
+            ):
+                output_names.extend(
+                    self.engine.model_analysis["present_key_values_outputs"]
+                )
 
             # Run inference
-            outputs = self.engine.session.run(output_names=output_names, input_feed=input_feed)
+            outputs = self.engine.session.run(
+                output_names=output_names, input_feed=input_feed
+            )
 
             # Extract logits (always first output)
             logits = outputs[0]
@@ -95,14 +105,18 @@ class TokenGenerator:
                 and len(outputs) > 1
             ):
                 present_key_values = {}
-                for i, output_name in enumerate(self.engine.model_analysis["present_key_values_outputs"]):
+                for i, output_name in enumerate(
+                    self.engine.model_analysis["present_key_values_outputs"]
+                ):
                     if i + 1 < len(outputs):  # +1 because logits is first output
                         present_key_values[output_name] = outputs[i + 1]
 
                 if present_key_values:
                     cache_key = self._get_cache_key(sequence_id, position)
                     self.engine.kv_cache.put(cache_key, present_key_values)
-                    logger.debug(f"Updated KV cache for seq {sequence_id} pos {position}")
+                    logger.debug(
+                        f"Updated KV cache for seq {sequence_id} pos {position}"
+                    )
 
             # Track performance
             inference_time = time.time() - start_time
@@ -128,14 +142,14 @@ class TokenGenerator:
     ) -> List[Tuple[List[int], List[float]]]:
         """
         Generate tokens using greedy decoding or beam search with KV caching
-        
+
         Args:
             input_ids_list: List of input token ID sequences
             max_lengths: List of maximum lengths for each sequence
             beam_size: Number of beams (1 = greedy, >1 = beam search)
             length_penalty: Length penalty for beam search normalization
             eos_token_id: If provided, stop when this token is generated
-        
+
         Returns:
             List of tuples (output_ids, last_logits) for each request
         """
@@ -161,17 +175,17 @@ class TokenGenerator:
                     length_penalty=length_penalty,
                     eos_token_id=eos_token_id,
                 )
-                
+
                 # Create a wrapper function for model inference with beam sequence ID
                 def model_inference_fn(tokens, beam_sequence_id):
                     input_tensor = np.array([tokens], dtype=np.int64)
                     logits = self.run_inference(
-                        input_tensor, 
-                        sequence_id=beam_sequence_id, 
-                        position=len(tokens)-1
+                        input_tensor,
+                        sequence_id=beam_sequence_id,
+                        position=len(tokens) - 1,
                     )
                     return logits[0, -1, :]
-                
+
                 # Run beam search
                 beam_hypotheses: List[BeamHypothesis] = beam_decoder.search(
                     initial_tokens=input_seq,
@@ -179,14 +193,14 @@ class TokenGenerator:
                     vocab_size=50000,
                     sequence_id_base=i,
                 )
-                
+
                 # Return the best hypothesis
                 if beam_hypotheses:
                     best_hypo: BeamHypothesis = beam_hypotheses[0]
                     results.append((best_hypo.tokens, []))
                 else:
                     results.append((input_seq, []))
-            
+
             return results
 
         # Process each token position with KV caching
@@ -221,7 +235,11 @@ class TokenGenerator:
             # Run batched inference with KV caching
             input_tensor = np.array(batch_input, dtype=np.int64)
 
-            if self.engine.cache_enabled and active_indices and self.engine.model_analysis["supports_kv_cache"]:
+            if (
+                self.engine.cache_enabled
+                and active_indices
+                and self.engine.model_analysis["supports_kv_cache"]
+            ):
                 # Use KV caching for the first active sequence
                 first_active = active_indices[0]
                 logits = self.run_inference(
@@ -237,7 +255,7 @@ class TokenGenerator:
                     last_logits = logits[batch_idx, pos, :]
                     next_token = int(np.argmax(last_logits))
                     output_sequences[seq_idx].append(next_token)
-                    
+
                     # Check for EOS token
                     if eos_token_id is not None and next_token == eos_token_id:
                         finished_sequences[seq_idx] = True
@@ -249,7 +267,10 @@ class TokenGenerator:
             if len(seq) > 0:
                 # Run single inference to get last logits
                 single_input = np.array([seq], dtype=np.int64)
-                if self.engine.cache_enabled and self.engine.model_analysis["supports_kv_cache"]:
+                if (
+                    self.engine.cache_enabled
+                    and self.engine.model_analysis["supports_kv_cache"]
+                ):
                     single_logits = self.run_inference(
                         single_input,
                         sequence_id=i,

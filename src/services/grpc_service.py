@@ -6,8 +6,9 @@ Handles gRPC service implementation for inference requests.
 
 import grpc
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from core.batcher import Batcher
+from core.config import InferenceConfig
 from utils.health import Health
 import inference_pb2
 import inference_pb2_grpc
@@ -19,10 +20,11 @@ logger = logging.getLogger(__name__)
 class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
     """gRPC inference service implementation"""
 
-    def __init__(self):
+    def __init__(self, config: Optional[InferenceConfig] = None):
         logger.info("InferenceService starting up")
         try:
-            self.batcher = Batcher()
+            self.config = config or InferenceConfig()
+            self.batcher = Batcher(self.config.batcher)
             self.start_time = time.time()  # Track service start time for metrics
             logger.info("InferenceService initialized successfully")
         except Exception as e:
@@ -33,10 +35,12 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
         try:
             input_ids = list(request.input_ids)
             max_tokens = request.max_tokens
-            
+
             # Extract beam search parameters with defaults
             beam_size = request.beam_size if request.beam_size > 0 else 1
-            length_penalty = request.length_penalty if request.length_penalty > 0 else 1.0
+            length_penalty = (
+                request.length_penalty if request.length_penalty > 0 else 1.0
+            )
             eos_token_id = request.eos_token_id if request.eos_token_id > 0 else None
 
             # Validate input
@@ -51,14 +55,16 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("max_tokens must be non-negative")
                 return inference_pb2.PredictResponse()
-                
+
             if beam_size < 1:
                 logger.warning(f"invalid beam_size: {beam_size}")
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("beam_size must be positive")
                 return inference_pb2.PredictResponse()
 
-            logger.info(f"Predict: input_len={len(input_ids)}, max_tokens={max_tokens}, beam_size={beam_size}, length_penalty={length_penalty}")
+            logger.info(
+                f"Predict: input_len={len(input_ids)}, max_tokens={max_tokens}, beam_size={beam_size}, length_penalty={length_penalty}"
+            )
 
             # Submit request to batcher
             future = self.batcher.submit_request(
@@ -66,12 +72,13 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
                 max_tokens=max_tokens,
                 beam_size=beam_size,
                 length_penalty=length_penalty,
-                eos_token_id=eos_token_id
+                eos_token_id=eos_token_id,
             )
 
             # Wait for result
             try:
-                result = future.result(timeout=30)
+                timeout = max(1, self.config.server.request_timeout_seconds)
+                result = future.result(timeout=timeout)
                 response = inference_pb2.PredictResponse(
                     output_ids=result.output_ids, logits=result.logits
                 )
@@ -91,9 +98,20 @@ class InferenceService(inference_pb2_grpc.InferenceServiceServicer):
 
     def Health(self, request, context):
         try:
-            ok = Health.check()
+            # Basic checks + engine readiness
+            engine_ok = False
+            try:
+                engine_ok = (
+                    self.batcher is not None
+                    and self.batcher.engine is not None
+                    and self.batcher.engine.session is not None
+                )
+            except Exception:
+                engine_ok = False
+
+            ok = Health.check() and engine_ok
             response = inference_pb2.HealthResponse(
-                ok=ok, message="OK" if ok else "NOT OK"
+                ok=ok, message=("OK" if ok else "Engine not ready")
             )
             logger.info(f"Health check: {'OK' if ok else 'NOT OK'}")
             return response

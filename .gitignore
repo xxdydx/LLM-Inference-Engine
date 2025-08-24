@@ -167,4 +167,13 @@ cython_debug/
 # Project specific
 models/*.onnx
 *.log
-inference_engine.log 
+inference_engine.log
+
+# Demo and benchmark outputs
+security-report.json
+safety-report.json
+coverage.xml
+htmlcov/
+
+# Additional logs
+logs/ 

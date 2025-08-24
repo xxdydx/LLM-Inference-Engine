@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  inference-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import grpc; import inference_pb2; import inference_pb2_grpc; channel
+          = grpc.insecure_channel('localhost:50051'); stub =
+          inference_pb2_grpc.InferenceServiceStub(channel); health =
+          stub.Health(inference_pb2.HealthRequest()); exit(0 if health.ok else
+          1)"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - inference-net
+
+  # Optional: Add a monitoring/metrics service
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   networks:
+  #     - inference-net
+
+networks:
+  inference-net:
+    driver: bridge

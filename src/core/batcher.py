@@ -7,12 +7,12 @@ Handles batching of inference requests using singleton pattern.
 import threading
 import queue
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from concurrent.futures import Future
 import logging
-import numpy as np
 from .onnx_infer import ONNXInfer
+from .config import BatcherConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class InferenceResult:
     """Result of inference operation"""
+
     output_ids: List[int]
     logits: List[float]
 
@@ -32,7 +33,7 @@ class BatchedRequest:
     max_tokens: int
     future: Future
     timestamp: float
-    
+
     # Beam search parameters
     beam_size: int = 1
     length_penalty: float = 1.0
@@ -42,60 +43,49 @@ class BatchedRequest:
 class Batcher:
     """Dynamic batching for handling inference requests with timer-based batching"""
 
-    _instance = None
+    def __init__(
+        self, config: Optional[BatcherConfig] = None, engine: Optional[ONNXInfer] = None
+    ):
+        # Create defaults if not provided so the service can start without explicit args
+        self.config = config or BatcherConfig()
+        if engine is None:
+            # Lazily construct the ONNX inference engine using provided config
+            self.engine = ONNXInfer(
+                model_path=self.config.model_path,
+                max_cache_size_mb=self.config.max_cache_size_mb,
+            )
+        else:
+            self.engine = engine
 
-    # Singleton pattern - ensure only one instance of the batcher exists
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(Batcher, cls).__new__(cls)
-        return cls._instance
+        # request queue
+        self.request_queue = queue.Queue()
 
-    def __init__(self, quantization_type=None):
-        if not hasattr(self, "initialized"):
-            try:
-                # Import quantization type
-                from core.onnx_infer import QuantizationType
+        self.batch_timeout_ms = self.config.batch_timeout_ms
+        self.max_batch_size = self.config.max_batch_size
 
-                # Use dynamic quantization by default if not specified
-                if quantization_type is None:
-                    quantization_type = QuantizationType.DYNAMIC
+        self._shutdown = False
+        self.batch_thread = threading.Thread(target=self._batch_worker, daemon=True)
+        self.batch_thread.start()
 
-                self.engine = ONNXInfer("models/gpt2.onnx", quantization_type)
-                self.request_queue = queue.Queue()
-                self.batch_timeout_ms = 100
-                self.max_batch_size = 10
+        # metrics
+        self.total_requests = 0
+        self.total_batches = 0
+        self.avg_batch_size = 0.0
+        self.total_batch_time = 0.0
+        self.batch_times = []
 
-                # Threading
-                self._shutdown = False
-                self.batch_thread = threading.Thread(
-                    target=self._batch_worker, daemon=True
-                )  # runs in background, not in main thread
-                self.batch_thread.start()
-
-                # Metrics
-                self.total_requests = 0
-                self.total_batches = 0
-                self.avg_batch_size = 0.0
-                self.total_batch_time = 0.0
-                self.batch_times = []
-
-                self.initialized = True
-                logger.info(
-                    f"Batcher initialized: timeout={self.batch_timeout_ms}ms, max_batch={self.max_batch_size}"
-                )
-
-            except Exception as e:
-                logger.error(f"Failed to initialize batcher: {e}")
-                raise
-
+        logger.info(
+            f"Batcher initialized: timeout={self.batch_timeout_ms}ms, "
+            f"max_batch={self.max_batch_size}, model={self.config.model_path}"
+        )
 
     def submit_request(
-        self, 
-        input_ids: List[int], 
+        self,
+        input_ids: List[int],
         max_tokens: int,
         beam_size: int = 1,
         length_penalty: float = 1.0,
-        eos_token_id: Optional[int] = None
+        eos_token_id: Optional[int] = None,
     ) -> Future:
         """Submit a request for batching and return a Future"""
         # Create a Future for the result
@@ -142,7 +132,7 @@ class Batcher:
             if batch_requests:
                 self._process_batch(batch_requests)
 
-        logger.info(f"Batch worker thread exiting")
+        logger.info("Batch worker thread exiting")
 
     def _process_batch(self, batch_requests: List[BatchedRequest]):
         """Process a batch of requests together using true batched inference"""
@@ -153,7 +143,7 @@ class Batcher:
             # Extract input data for batched processing
             input_ids_list = [req.input_ids for req in batch_requests]
             max_lengths = [req.max_tokens for req in batch_requests]
-            
+
             # Extract beam search parameters (use first request's parameters for the whole batch)
             # TODO: Handle mixed beam search parameters in batches
             first_req = batch_requests[0]
@@ -167,7 +157,7 @@ class Batcher:
                 max_lengths=max_lengths,
                 beam_size=beam_size,
                 length_penalty=length_penalty,
-                eos_token_id=eos_token_id
+                eos_token_id=eos_token_id,
             )
 
             # Set results for each request

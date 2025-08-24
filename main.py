@@ -7,7 +7,6 @@ Runs the inference engine server with proper logging and error handling.
 
 import logging
 import sys
-import os
 from pathlib import Path
 import grpc
 from concurrent import futures
@@ -17,6 +16,7 @@ import inference_pb2_grpc
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from services.grpc_service import InferenceService
+from core.config import InferenceConfig
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def setup_environment():
+def setup_environment(config: InferenceConfig):
     """Setup environment and check prerequisites"""
     # Check if models directory exists
     models_dir = Path("models")
@@ -40,7 +40,7 @@ def setup_environment():
         logger.info("Please place your ONNX model in models/gpt2.onnx")
 
     # Check if model file exists
-    model_path = models_dir / "gpt2.onnx"
+    model_path = Path(config.batcher.model_path)
     if not model_path.exists():
         logger.warning(f"Model file not found: {model_path}")
         logger.info("Please download or place your ONNX model in models/gpt2.onnx")
@@ -51,18 +51,24 @@ def main():
     try:
         logger.info("Starting Inference Engine Server...")
 
+        # Load configuration (could be extended to parse env/args)
+        config = InferenceConfig()
+
         # Setup environment
-        setup_environment()
+        setup_environment(config)
 
         # Initialize the inference service
-        service = InferenceService()
+        service = InferenceService(config=config)
         logger.info("Inference service initialized successfully")
 
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=config.server.max_workers)
+        )
         inference_pb2_grpc.add_InferenceServiceServicer_to_server(service, server)
-        server.add_insecure_port("[::]:50051")
+        bind_addr = f"{config.server.host}:{config.server.port}"
+        server.add_insecure_port(bind_addr)
         server.start()
-        logger.info("gRPC server started on port 50051")
+        logger.info(f"gRPC server started on {bind_addr}")
 
         # Keep the server running
         logger.info("Press Ctrl+C to stop the server")
