@@ -17,11 +17,11 @@ python main.py
 
 ## Features
 
-• **Dynamic Batching** - Automatic request aggregation for optimal throughput
-• **KV Caching** - Memory-efficient caching for autoregressive models  
-• **Beam Search** - Configurable beam search with length penalty
-• **gRPC API** - Production-ready API with health checks
-• **Thread-Safe** - Singleton batcher with concurrent request handling
+- **Dynamic Batching** - Automatic request aggregation for optimal throughput
+- **KV Caching** - Memory-efficient caching for autoregressive models  
+- **Beam Search** - Configurable beam search with length penalty
+- **gRPC API** - Production-ready API with health checks
+- **Thread-Safe** - Singleton batcher with concurrent request handling
 
 ## Usage
 
